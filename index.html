@@ -304,6 +304,43 @@
     <div id="invoice-content"></div>
   </div>
 
+  <!-- SETTINGS VIEW -->
+  <div class="view" id="view-settings">
+    <div class="section-head"><h2>Settings</h2></div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-title" style="margin-bottom:4px;">Google Sheet connection</div>
+      <div class="card-sub" style="margin-bottom:14px;">Update credentials or link a new sheet</div>
+      <div class="form-group">
+        <label>Sheet ID</label>
+        <input type="text" id="st-sheet-id" placeholder="Paste your Sheet ID">
+      </div>
+      <div class="form-group">
+        <label>API Key</label>
+        <input type="text" id="st-api-key" placeholder="Paste your API key">
+      </div>
+      <button class="btn btn-primary" onclick="saveSettingsConfig()" style="margin-bottom:8px;">Save &amp; reconnect</button>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-title" style="margin-bottom:4px;">Sync</div>
+      <div class="card-sub" style="margin-bottom:14px;">Manually pull the latest data from your Google Sheet</div>
+      <button class="btn btn-secondary" style="width:100%;" onclick="syncAll()">↻ Sync now</button>
+    </div>
+
+    <div class="card" style="border-color: var(--red); margin-bottom:12px;">
+      <div class="card-title" style="margin-bottom:4px;">Disconnect sheet</div>
+      <div class="card-sub" style="margin-bottom:14px;">Remove saved credentials from this device. Your Google Sheet data is not affected.</div>
+      <button class="btn" style="width:100%;background:var(--red-light);color:var(--red);" onclick="disconnectSheet()">Disconnect this device</button>
+    </div>
+
+    <div class="card" style="border-color: var(--red);">
+      <div class="card-title" style="margin-bottom:4px; color:var(--red);">Danger zone</div>
+      <div class="card-sub" style="margin-bottom:14px;">Permanently delete all data from your Google Sheet. This cannot be undone.</div>
+      <button class="btn" style="width:100%;background:var(--red);color:white;" onclick="resetAllData()">Delete all data</button>
+    </div>
+  </div>
+
 </div><!-- /main-app -->
 
 <!-- NAV -->
@@ -319,6 +356,10 @@
   <button class="nav-btn" onclick="switchView('invoice', this)">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="12" y2="17"/></svg>
     Invoices
+  </button>
+  <button class="nav-btn" onclick="switchView('settings', this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Settings
   </button>
 </nav>
 
@@ -569,6 +610,7 @@ function switchView(name, btn) {
   if (name === 'sessions') renderSessions();
   if (name === 'clients') renderClients();
   if (name === 'invoice') renderInvoice();
+  if (name === 'settings') renderSettings();
 }
 function renderCurrentView() {
   if (currentView === 'sessions') renderSessions();
@@ -903,6 +945,62 @@ function copyInvoice(clientId, yr, mo) {
   });
   text += `\nTotal due: $${total.toFixed(2)}\n\nPayment accepted via Cash, Venmo, or Zelle.\n\nThank you!`;
   navigator.clipboard.writeText(text).then(() => showToast('Invoice copied — paste into email or text!'));
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+function renderSettings() {
+  document.getElementById('st-sheet-id').value = config.sheetId || '';
+  document.getElementById('st-api-key').value = config.apiKey || '';
+}
+
+async function saveSettingsConfig() {
+  const sheetId = document.getElementById('st-sheet-id').value.trim();
+  const apiKey = document.getElementById('st-api-key').value.trim();
+  if (!sheetId || !apiKey) return showToast('Both fields are required.');
+  config = { sheetId, apiKey };
+  localStorage.setItem(CFG_KEY, JSON.stringify(config));
+  showLoading('Connecting to new sheet…');
+  try {
+    const clientRows = await sheetsGet(SHEETS.clients);
+    if (!clientRows.length) await sheetsAppend(SHEETS.clients, [['id','name','email','notes','services']]);
+    const sessionRows = await sheetsGet(SHEETS.sessions);
+    if (!sessionRows.length) await sheetsAppend(SHEETS.sessions, [['id','clientId','clientName','service','price','date','notes','paid']]);
+    await loadFromSheets();
+    renderCurrentView();
+    hideLoading();
+    showToast('Reconnected successfully!');
+  } catch(e) {
+    hideLoading();
+    showToast('Connection failed — check your credentials.');
+    console.error(e);
+  }
+}
+
+function disconnectSheet() {
+  if (!confirm('Remove saved credentials from this device?\n\nYour Google Sheet data will not be affected.')) return;
+  localStorage.removeItem(CFG_KEY);
+  config = {};
+  clients = [];
+  sessions = [];
+  showSetup();
+  showToast('Disconnected. Your Sheet data is safe.');
+}
+
+async function resetAllData() {
+  if (!confirm('This will permanently delete ALL clients and sessions from your Google Sheet.\n\nThis cannot be undone. Are you sure?')) return;
+  if (!confirm('Last chance — delete everything?')) return;
+  showLoading('Deleting all data…');
+  try {
+    clients = [];
+    sessions = [];
+    await Promise.all([writeClients(), writeSessions()]);
+    hideLoading();
+    renderCurrentView();
+    showToast('All data deleted.');
+  } catch(e) {
+    hideLoading();
+    showToast('Delete failed — check your connection.');
+  }
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
