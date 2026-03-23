@@ -438,19 +438,24 @@ async function loadAll() {
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
 function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function normalizeDate(str) {
+  if (!str) return '';
+  // Trim anything after the date portion (handles full ISO timestamps)
+  return String(str).slice(0,10);
+}
 function fmtDate(str) {
   if (!str) return '';
-  const d = new Date(str+'T12:00:00');
+  const d = new Date(normalizeDate(str)+'T12:00:00');
   return isNaN(d) ? str : d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 }
 function fmtShort(str) {
   if (!str) return '';
-  const d = new Date(str+'T12:00:00');
+  const d = new Date(normalizeDate(str)+'T12:00:00');
   return isNaN(d) ? str : d.toLocaleDateString('en-US',{month:'short',day:'numeric'});
 }
-function monthKey(str) { // "2025-03"
+function monthKey(str) {
   if (!str) return '';
-  return str.slice(0,7);
+  return normalizeDate(str).slice(0,7);
 }
 function monthLabel(key) {
   if (!key) return '';
@@ -798,7 +803,7 @@ function renderInvoice() {
   const yr=invoiceDate.getFullYear(), mo=invoiceDate.getMonth();
   document.getElementById('invoice-month-label').textContent=invoiceDate.toLocaleDateString('en-US',{month:'long',year:'numeric'});
 
-  const monthSessions=sessions.filter(s=>{const d=new Date(s.date+'T12:00:00');return d.getFullYear()===yr&&d.getMonth()===mo;});
+  const monthSessions=sessions.filter(s=>{const d=new Date(normalizeDate(s.date)+'T12:00:00');return d.getFullYear()===yr&&d.getMonth()===mo;});
   // Payments for this month — all payments up to end of month for running balance context
   const monthPayments=payments.filter(p=>{const d=new Date(p.date+'T12:00:00');return d.getFullYear()===yr&&d.getMonth()===mo;});
 
@@ -901,7 +906,7 @@ function toggleCollapsible(id) {
 
 function showInvoiceDetail(clientId, yr, mo) {
   const client=clients.find(c=>c.id===clientId);
-  const ms=sessions.filter(s=>{const d=new Date(s.date+'T12:00:00');return s.clientId===clientId&&d.getFullYear()===yr&&d.getMonth()===mo;});
+  const ms=sessions.filter(s=>{const d=new Date(normalizeDate(s.date)+'T12:00:00');return s.clientId===clientId&&d.getFullYear()===yr&&d.getMonth()===mo;});
   const mp=payments.filter(p=>{const d=new Date(p.date+'T12:00:00');return p.clientId===clientId&&d.getFullYear()===yr&&d.getMonth()===mo;});
   const billed=ms.reduce((sum,s)=>sum+s.price,0);
   const paid=mp.reduce((sum,p)=>sum+p.amount,0);
@@ -930,7 +935,7 @@ function showInvoiceDetail(clientId, yr, mo) {
 
 function copyInvoice(clientId, yr, mo) {
   const client=clients.find(c=>c.id===clientId);
-  const ms=sessions.filter(s=>{const d=new Date(s.date+'T12:00:00');return s.clientId===clientId&&d.getFullYear()===yr&&d.getMonth()===mo;});
+  const ms=sessions.filter(s=>{const d=new Date(normalizeDate(s.date)+'T12:00:00');return s.clientId===clientId&&d.getFullYear()===yr&&d.getMonth()===mo;});
   const mp=payments.filter(p=>{const d=new Date(p.date+'T12:00:00');return p.clientId===clientId&&d.getFullYear()===yr&&d.getMonth()===mo;});
   const billed=ms.reduce((sum,s)=>sum+s.price,0);
   const paid=mp.reduce((sum,p)=>sum+p.amount,0);
